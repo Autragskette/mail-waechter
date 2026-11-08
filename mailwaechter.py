@@ -353,12 +353,19 @@ def nachricht(erg, betreff, datum, anhang_namen, cfg, hinweis=""):
 
 
 def sammel_nachricht(belanglose, cfg):
+    """belanglose: Liste von (thema, betreff). Ohne KI wird der Betreff gezeigt,
+    damit man auf einen Blick sieht, ob die Stichwörter etwas übersehen haben."""
     wer = cfg.get("absender_bezeichnung", "Absender")
     ordner = cfg["ordner"]["BELANGLOS"]
-    themen = ", ".join(t for t in belanglose if t)
     n = len(belanglose)
-    return (f"📭 {n} {'Mail' if n == 1 else 'Mails'} vom {wer}: belanglos"
-            + (f" ({themen})" if themen else "") + f".\nAbgelegt in „{ordner}“.")
+    kopf = f"📭 {n} {'Mail' if n == 1 else 'Mails'} vom {wer}: belanglos"
+    if env("ANTHROPIC_API_KEY", pflicht=False):
+        themen = ", ".join(t for t, _ in belanglose if t)
+        return kopf + (f" ({themen})" if themen else "") + f".\nAbgelegt in „{ordner}“."
+    zeilen = "\n".join(f"• {b[:80]}" for _, b in belanglose[:15])
+    mehr = f"\n• … und {n - 15} weitere" if n > 15 else ""
+    return (f"{kopf} (keine Stichwörter gefunden).\nBetreff:\n{zeilen}{mehr}\n"
+            f"Abgelegt in „{ordner}“.")
 
 
 # ================================================================ IMAP
@@ -616,7 +623,7 @@ def postfach_pruefen():
             if kat == "BELANGLOS":
                 imap.uid("STORE", uid, "+FLAGS", r"(\Seen)")
                 verschieben(imap, uid, ziele[kat])
-                belanglose.append(erg.get("thema", ""))
+                belanglose.append((erg.get("thema", ""), betreff))
             else:
                 # Erst melden, dann verschieben. Scheitert die Meldung, bleibt die
                 # Mail liegen und der Lauf bricht mit Fehleralarm ab.
@@ -769,7 +776,7 @@ def test_datei(pfad):
     print(json.dumps(erg, ensure_ascii=False, indent=2))
     print("\n--- Telegram-Nachricht ---")
     if erg["kategorie"] == "BELANGLOS":
-        print(sammel_nachricht([erg.get("thema", "")], cfg))
+        print(sammel_nachricht([(erg.get("thema", ""), betreff)], cfg))
     else:
         print(nachricht(erg, betreff, mail_datum(msg), namen, cfg))
 

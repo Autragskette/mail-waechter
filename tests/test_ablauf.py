@@ -198,6 +198,7 @@ check("7 Zitat löst keinen Alarm aus", ordner(imap, "Belanglos") == {b"1"})
 # 8) Ohne KI-Schlüssel (kostenlos): Stichwort -> wichtig, sonst belanglos
 imap, netz, f = lauf([mail("ex@example.de", "a", "Loch in der Jacke"), mail("ex@example.de", "b", "Er hat Fieber")], key="")
 check("8 ohne KI sortiert", ordner(imap, "Belanglos") == {b"1"} and ordner(imap, "Wichtig") == {b"2"})
+check("8 ohne KI: Betreff in Sammelnachricht", any(t.startswith("📭") and "• a" in t for t, _ in netz.nachrichten))
 
 # 9) Falsches Passwort -> klarer Fehler
 imap, netz, f = lauf([], GMX_PASSWORD="falsch")
