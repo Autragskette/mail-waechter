@@ -116,7 +116,7 @@ class Antwort(io.BytesIO):
 
 
 def ki_einfach(text):
-    if "Notaufnahme" in text or "Zahnarzttermin" in text:
+    if "Notaufnahme" in text or "Zahnarzttermin" in text or "Klettergerüst" in text:
         return {"kategorie": "WICHTIG", "thema": "Gesundheit", "zusammenfassung": "Kind war beim Arzt.", "grund": "Gesundheit"}
     return {"kategorie": "BELANGLOS", "thema": "Kleidung", "zusammenfassung": "", "grund": "Alltag"}
 
