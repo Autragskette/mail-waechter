@@ -21,5 +21,14 @@ jobs:
       - name: Echte Einrichtung prüfen
         run: python3 mailwaechter.py --selbsttest
         env:
-          ALLE_SECRETS: ${{ toJSON(secrets) }}
-          ALLE_VARS: ${{ toJSON(vars) }}
+          GMX_USER: ${{ secrets.GMX_USER }}
+          GMX_PASSWORD: ${{ secrets.GMX_PASSWORD }}
+          SENDER_ADDRESSES: ${{ secrets.SENDER_ADDRESSES }}
+          SENDER_NAMES: ${{ secrets.SENDER_NAMES }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          KIND_NAME: ${{ secrets.KIND_NAME }}
+          ANDERE_KINDER: ${{ secrets.ANDERE_KINDER }}
+          START_DATUM: ${{ vars.START_DATUM }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          HEALTHCHECK_URL: ${{ secrets.HEALTHCHECK_URL }}
