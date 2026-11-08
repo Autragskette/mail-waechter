@@ -11,9 +11,9 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."
 import mailwaechter as mw  # noqa: E402
 
 
-def mail(von, betreff, text, anhang=False):
+def mail(von, betreff, text, anhang=False, name="X"):
     if not anhang:
-        return (f"From: X <{von}>\r\nSubject: {betreff}\r\nDate: Sun, 08 Nov 2026 10:00:00 +0100\r\n"
+        return (f"From: {name} <{von}>\r\nSubject: {betreff}\r\nDate: Sun, 08 Nov 2026 10:00:00 +0100\r\n"
                 f"Content-Type: text/plain; charset=utf-8\r\n\r\n{text}").encode()
     return (f"From: X <{von}>\r\nSubject: {betreff}\r\nMIME-Version: 1.0\r\n"
             f"Content-Type: multipart/mixed; boundary=B\r\n\r\n--B\r\nContent-Type: text/plain\r\n\r\n{text}\r\n"
@@ -23,16 +23,22 @@ def mail(von, betreff, text, anhang=False):
 class FakeIMAP:
     capabilities = ("IMAP4REV1", "MOVE", "UIDPLUS")
 
-    def __init__(self, mails):
-        self.ordner = {"INBOX": {str(i + 1).encode(): [m, set()] for i, m in enumerate(mails)}}
+    def __init__(self, mails, spam=()):
+        self.ordner = {"INBOX": {str(i + 1).encode(): [m, set()] for i, m in enumerate(mails)},
+                       "Spamverdacht": {str(i + 101).encode(): [m, set()] for i, m in enumerate(spam)},
+                       "Unbekannt": {}, "Papierkorb": {}, "Gesendet": {}}
         self.aktuell = None
+        self.literal = None
 
     def login(self, u, p):
         if p != "richtig":
             raise mw.imaplib.IMAP4.error("auth")
 
     def list(self, *a):
-        return "OK", [b'(\\HasNoChildren) "/" "INBOX"']
+        return "OK", [b'(\\HasNoChildren) "/" "INBOX"', b'(\\HasNoChildren \\Junk) "/" "Spamverdacht"',
+                      b'(\\HasNoChildren \\Sent) "/" "Gesendet"', b'(\\HasNoChildren \\Trash) "/" "Papierkorb"',
+                      b'(\\HasNoChildren) "/" "Unbekannt"', b'(\\HasChildren) "/" "Vater-Mails"',
+                      b'(\\HasNoChildren) "/" "Vater-Mails/Wichtig"']
 
     def create(self, n):
         self.ordner.setdefault(n.strip('"'), {})
@@ -54,16 +60,22 @@ class FakeIMAP:
     def uid(self, cmd, uid, *args):
         box = self.ordner[self.aktuell]
         if cmd == "SEARCH":
-            adr = args[1].strip('"')
-            treffer = [u for u, (m, _) in box.items() if adr in m.decode(errors="ignore").split("\r\n")[0]]
+            args = (uid,) + args
+            adr = self.literal.decode() if args[0] == "CHARSET" else args[args.index("FROM") + 1].strip('"')
+            treffer = [u for u, (m, _) in box.items()
+                       if adr.lower() in m.decode(errors="ignore").split("\r\n")[0].lower()]
             return "OK", [b" ".join(treffer)]
         if cmd == "FETCH":
+            if box[uid][0] == b"KAPUTT":
+                return "NO", [None]
             return "OK", [(b"1 (BODY[] {1}", box[uid][0]), b")"]
         if cmd == "STORE":
             box[uid][1].add(args[1])
             return "OK", [b""]
         if cmd == "MOVE":
             self.ordner[args[0].strip('"')][uid] = box.pop(uid)
+            return "OK", [b""]
+        if cmd == "COPY":
             return "OK", [b""]
         raise AssertionError(cmd)
 
@@ -86,6 +98,9 @@ class Netz:
         text = daten["messages"][0]["content"]
         if self.ki == "kaputt":
             raise urllib.error.HTTPError(req.full_url, 529, "overloaded", {}, None)
+        if self.ki == "pleite":
+            raise urllib.error.HTTPError(req.full_url, 400, "bad", {},
+                                         io.BytesIO(b'{"error":{"message":"Your credit balance is too low"}}'))
         return Antwort({"content": [{"type": "text", "text": json.dumps(self.ki(text))}]})
 
 
@@ -106,15 +121,16 @@ def ki_einfach(text):
     return {"kategorie": "BELANGLOS", "thema": "Kleidung", "zusammenfassung": "", "grund": "Alltag"}
 
 
-def lauf(mails, ki=ki_einfach, key="k", telegram_kaputt=False, heartbeat=False, **extra):
-    imap = FakeIMAP(mails)
+def lauf(mails, ki=ki_einfach, key="k", telegram_kaputt=False, heartbeat=False, spam=(), **extra):
+    imap = FakeIMAP(mails, spam)
     netz = Netz(ki, telegram_kaputt)
     mw.imaplib.IMAP4_SSL = lambda *a, **k: imap
     mw.urllib.request.urlopen = netz
     mw.time.sleep = lambda s: None
     werte = dict(GMX_USER="sie@gmx.de", GMX_PASSWORD="richtig", SENDER_ADDRESSES="ex@example.de",
                  TELEGRAM_BOT_TOKEN="t", TELEGRAM_CHAT_ID="1", ANTHROPIC_API_KEY=key,
-                 HEARTBEAT="true" if heartbeat else "", DRY_RUN="")
+                 HEARTBEAT="true" if heartbeat else "", DRY_RUN="", SENDER_NAMES="", START_DATUM="",
+                 HEALTHCHECK_URL="")
     werte.update(extra)
     os.environ.update(werte)
     fehler = None
@@ -219,6 +235,102 @@ try:
 except BaseException as e:
     f = e
 check("15 halb eingerichtet -> Fehler", f is not None)
+
+# 16) Mail im Spam-Ordner wird gefunden und gemeldet
+imap, netz, f = lauf([], spam=[mail("ex@example.de", "Info", "Er hat Fieber")])
+check("16 Spam-Ordner durchsucht", ordner(imap, "Wichtig") == {b"101"})
+check("16 Hinweis 'Spam' in Meldung", netz.nachrichten and "Spam" in netz.nachrichten[0][0])
+
+# 16b) Mail in „Unbekannt“ wird gefunden, Papierkorb/Gesendet werden NICHT angefasst
+imap = FakeIMAP([])
+imap.ordner["Unbekannt"][b"201"] = [mail("ex@example.de", "x", "Er hat Fieber"), set()]
+imap.ordner["Papierkorb"][b"301"] = [mail("ex@example.de", "x", "alt"), set()]
+imap.ordner["Gesendet"][b"401"] = [mail("ex@example.de", "x", "alt"), set()]
+netz = Netz(ki_einfach)
+mw.imaplib.IMAP4_SSL = lambda *a, **k: imap
+mw.urllib.request.urlopen = netz
+mw.postfach_pruefen()
+check("16b Ordner „Unbekannt“ durchsucht", ordner(imap, "Wichtig") == {b"201"})
+check("16b Papierkorb/Gesendet unberührt", b"301" in imap.ordner["Papierkorb"] and b"401" in imap.ordner["Gesendet"])
+
+# 16c) Eine Mail nicht ladbar -> Warnung, die anderen werden trotzdem verarbeitet
+imap = FakeIMAP([mail("ex@example.de", "a", "Er hat Fieber")])
+imap.ordner["INBOX"][b"0"] = [b"KAPUTT", set()]
+orig_search = imap.uid
+def uid_mit_kaputt(cmd, uid, *args):
+    r = orig_search(cmd, uid, *args)
+    if cmd == "SEARCH" and imap.aktuell == "INBOX":
+        return "OK", [r[1][0] + b" 0" if r[1][0] else b"0"]
+    return r
+imap.uid = uid_mit_kaputt
+netz = Netz(ki_einfach)
+mw.imaplib.IMAP4_SSL = lambda *a, **k: imap
+mw.urllib.request.urlopen = netz
+mw.postfach_pruefen()
+check("16c andere Mail trotzdem verarbeitet", ordner(imap, "Wichtig") == {b"1"})
+check("16c laute Warnung zur kaputten Mail", any("nicht geladen" in t and not st for t, st in netz.nachrichten))
+
+# 17) Neue Adresse, aber bekannter Name -> erkannt, mindestens UNKLAR, Hinweis
+imap, netz, f = lauf([mail("neu123@web.de", "Hose", "Loch in der Hose", name="Max Muster")],
+                     SENDER_NAMES="Max Muster")
+check("17 neue Adresse erkannt", ordner(imap, "Pruefen") == {b"1"})
+check("17 Hinweis auf neue Adresse", netz.nachrichten and "NEUER Adresse" in netz.nachrichten[0][0])
+
+# 18) Name mit Umlaut über UTF-8-Suche
+imap, netz, f = lauf([mail("neu@web.de", "x", "Loch", name="Jürgen Müller")], SENDER_NAMES="Jürgen Müller")
+check("18 Name mit Umlaut erkannt", ordner(imap, "Pruefen") == {b"1"})
+
+# 19) Fremder Absender mit anderem Namen bleibt unberührt
+imap, netz, f = lauf([mail("chef@firma.de", "x", "Er hat Fieber", name="Chef")], SENDER_NAMES="Max Muster")
+check("19 Fremde Mail unberührt", set(imap.ordner["INBOX"]) == {b"1"} and not netz.nachrichten)
+
+# 20) KI-Guthaben leer -> Warnung mit klarem Grund
+imap, netz, f = lauf([mail("ex@example.de", "Hose", "Loch")], ki="pleite")
+check("20 Warnung 'Guthaben'", any("Guthaben" in t for t, _ in netz.nachrichten))
+check("20 Mail trotzdem gemeldet", ordner(imap, "Pruefen") == {b"1"})
+
+# 21) Kaputtes Startdatum -> Fehler (Alarm), nicht stilles Ignorieren
+imap, netz, f = lauf([mail("ex@example.de", "x", "y")], START_DATUM="8.11.26x")
+check("21 falsches Startdatum -> Fehler", isinstance(f, SystemExit) and "START_DATUM" in str(f))
+
+# 22) Selbsttest ohne Wachdienst -> ❌
+imap, netz, f = lauf([])
+os.environ["HEALTHCHECK_URL"] = ""
+try:
+    mw.selbsttest(); f = None
+except SystemExit as e:
+    f = e
+check("22 Selbsttest verlangt Wachdienst", f is not None and any("Wachdienst" in t and "❌" in t for t, _ in netz.nachrichten))
+
+# 23) Stichwörter: realistische Sätze
+cfg = mw.lade_config()
+WICHTIG = ["Er hat Bauchschmerzen seit gestern", "Der Kleine hat 39,5", "Wir waren beim Hausarzt",
+           "Er ist vom Fahrrad gefallen, Knie blutet", "Er hat sich heute Nacht übergeben", "Er hat Nasenbluten",
+           "Fahrradunfall, alles ok", "Er war im Kinderkrankenhaus", "Er hat sich den Kopf gestoßen",
+           "Ich bringe ihn Sonntag nicht zurück", "Wir fliegen in die Türkei, Urlaub", "Du wirst schon sehen was passiert",
+           "Ich weiß wo du wohnst", "Ich kann nicht mehr, das ist meine letzte Mail", "Das Jugendamt war hier",
+           "Ich komme Freitag eine Stunde später", "Die Schule hat angerufen", "Er hat einen Zeckenbiss",
+           "Er hat Ausschlag am Bauch", "Termin beim Kieferorthopäden", "Er hat Husten und Schnupfen",
+           "Er hat sich in der Kita verletzt", "Er hat sich die Hand eingeklemmt", "Ich hole ihn nicht ab",
+           "Er hat Läuse", "Er weint die ganze Zeit", "Vom Hund gebissen", "Er wurde bedroht", "Er hat ARZTTERMIN",
+           "termin bei der aerztin", "Er hat Krampfanfälle", "Er hat Angst im Dunkeln", "Der Hund ist tot",
+           "Die Polizei war da", "Ich nehme ihn mit nach Polen", "Er hat eine Gehirnerschuetterung"]
+BELANGLOS = ["Die Hose hat schon wieder ein Loch", "Du hast die falschen Socken eingepackt", "Er hat Pizza gegessen",
+             "Typisch du, nie bist du erreichbar", "Die Jacke ist zu klein", "Wir waren auf dem Spielplatz",
+             "Seine Schuhe sind total dreckig", "Du bist eine schlechte Mutter", "Wir haben Gespräche geführt",
+             "Ich habe ihm die Haare geschnitten", "Wir haben leckere Gerichte gekocht", "Er hat einen Bericht geschrieben",
+             "Das hat ihm gut gefallen", "Ich habe vorgeschlagen Lego zu bauen", "Das ist mir total egal",
+             "Seine Trinkflasche ist kaputt", "Er braucht Turnschuhe Größe 31", "Du beklagst dich ständig",
+             "Er hatte kurzfristig keine Lust", "Kannst du die Wäsche waschen", "Er spricht gut Sprache",
+             "Die Übergabe war wie immer"]
+verpasst = [x for x in WICHTIG if not mw.stichwort_treffer(x, cfg)]
+fehlalarm = [x for x in BELANGLOS if mw.stichwort_treffer(x, cfg)]
+check(f"23 alle {len(WICHTIG)} wichtigen Testsätze erkannt" + (f" – verpasst: {verpasst}" if verpasst else ""), not verpasst)
+check(f"23 keine Fehlalarme bei {len(BELANGLOS)} belanglosen Sätzen" + (f" – {fehlalarm}" if fehlalarm else ""), not fehlalarm)
+
+# 24) Alle Stichwörter lassen sich verarbeiten und treffen sich selbst
+kaputt = [w for _, w, rx in mw.stichwort_muster(cfg) if not rx.search(mw.normalisiere(w))]
+check("24 jedes Stichwort funktioniert", not kaputt)
 
 print("\nALLE TESTS BESTANDEN" if not GESCHEITERT else f"\n{len(GESCHEITERT)} FEHLGESCHLAGEN")
 sys.exit(1 if GESCHEITERT else 0)

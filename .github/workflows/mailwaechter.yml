@@ -21,6 +21,7 @@ jobs:
     env:
       TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
       TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+      HEALTHCHECK_URL: ${{ secrets.HEALTHCHECK_URL }}
     steps:
       - uses: actions/checkout@v4
 
@@ -30,10 +31,21 @@ jobs:
           GMX_USER: ${{ secrets.GMX_USER }}
           GMX_PASSWORD: ${{ secrets.GMX_PASSWORD }}
           SENDER_ADDRESSES: ${{ secrets.SENDER_ADDRESSES }}
+          SENDER_NAMES: ${{ secrets.SENDER_NAMES }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           START_DATUM: ${{ vars.START_DATUM }}
           DRY_RUN: ${{ vars.DRY_RUN }}
           HEARTBEAT: ${{ github.event.schedule == '7 18 * * *' }}
+
+      # Unabhängiger Wachdienst: meldet sich healthchecks.io eine Stunde lang kein
+      # erfolgreicher Lauf, schickt healthchecks.io SELBST eine Warnung (Telegram/Mail).
+      # Das greift auch, wenn GitHub komplett ausfällt oder der Ablauf pausiert ist.
+      - name: Wachdienst – Lauf erfolgreich
+        if: success()
+        run: |
+          if [ -n "$HEALTHCHECK_URL" ]; then
+            curl -fsS -m 15 --retry 5 --retry-all-errors -o /dev/null "$HEALTHCHECK_URL"
+          fi
 
       # GitHub pausiert geplante Abläufe nach 60 Tagen ohne Änderung am Repo.
       # Das hier schaltet ihn täglich wieder "aktiv", damit er nie einschläft.
@@ -44,10 +56,13 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
 
-      # Bei JEDEM Fehler kommt eine Warnung aufs Handy.
+      # Bei JEDEM Fehler: sofort Warnung aufs Handy – über zwei getrennte Wege.
       - name: Fehleralarm
-        if: failure()
+        if: failure() || cancelled()
         run: |
-          curl -sS -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
+          if [ -n "$HEALTHCHECK_URL" ]; then
+            curl -fsS -m 15 --retry 3 -o /dev/null "$HEALTHCHECK_URL/fail" || true
+          fi
+          curl -sS -m 20 --retry 3 -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
             --data-urlencode "chat_id=${TELEGRAM_CHAT_ID}" \
-            --data-urlencode "text=❌ Mail-Wächter: Fehler beim Prüfen des Postfachs. Bis das behoben ist, bitte selbst in GMX nachsehen. Details: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+            --data-urlencode "text=❌ Mail-Wächter: Das Postfach konnte gerade NICHT geprüft werden. Bis das behoben ist, bitte selbst in GMX nachsehen (auch im Spam-Ordner). Details: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" || true
