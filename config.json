@@ -130,6 +130,7 @@
     ],
     "Arzt/Medikamente": [
       "arzt",
+      "reha",
       "ärztin",
       "bereitschaftsdienst",
       "medikament",
