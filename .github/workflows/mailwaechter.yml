@@ -2,8 +2,13 @@ name: Mail-Wächter
 
 on:
   schedule:
-    - cron: "*/10 * * * *"   # alle 10 Minuten (GitHub kann sich etwas verspäten)
+    - cron: "*/10 * * * *"   # alle 10 Minuten prüfen (GitHub kann sich ein paar Minuten verspäten)
+    - cron: "7 18 * * *"     # täglich ca. 19 Uhr: Lebenszeichen + Wachhalten
   workflow_dispatch:          # manuell starten über "Run workflow"
+
+permissions:
+  contents: read
+  actions: write              # nur für das Wachhalten (siehe unten)
 
 concurrency:
   group: mailwaechter
@@ -12,16 +17,37 @@ concurrency:
 jobs:
   pruefen:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 20
+    env:
+      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
     steps:
       - uses: actions/checkout@v4
+
       - name: Postfach prüfen
         run: python3 mailwaechter.py
         env:
           GMX_USER: ${{ secrets.GMX_USER }}
           GMX_PASSWORD: ${{ secrets.GMX_PASSWORD }}
           SENDER_ADDRESSES: ${{ secrets.SENDER_ADDRESSES }}
-          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-          DRY_RUN: ${{ vars.DRY_RUN }}   # Repo-Variable DRY_RUN=1 -> nur Probelauf
+          START_DATUM: ${{ vars.START_DATUM }}
+          DRY_RUN: ${{ vars.DRY_RUN }}
+          HEARTBEAT: ${{ github.event.schedule == '7 18 * * *' }}
+
+      # GitHub pausiert geplante Abläufe nach 60 Tagen ohne Änderung am Repo.
+      # Das hier schaltet ihn täglich wieder "aktiv", damit er nie einschläft.
+      - name: Wachhalten
+        if: github.event.schedule == '7 18 * * *'
+        continue-on-error: true
+        run: gh api -X PUT "repos/${{ github.repository }}/actions/workflows/mailwaechter.yml/enable"
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      # Bei JEDEM Fehler kommt eine Warnung aufs Handy.
+      - name: Fehleralarm
+        if: failure()
+        run: |
+          curl -sS -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
+            --data-urlencode "chat_id=${TELEGRAM_CHAT_ID}" \
+            --data-urlencode "text=❌ Mail-Wächter: Fehler beim Prüfen des Postfachs. Bis das behoben ist, bitte selbst in GMX nachsehen. Details: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"

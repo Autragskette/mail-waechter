@@ -1,0 +1,30 @@
+name: Einrichtung testen
+
+# Manuell starten: Actions → "Einrichtung testen" → "Run workflow".
+# Prüft GMX, Absender-Adresse, KI und Telegram und schickt das Ergebnis aufs Handy.
+# Verschiebt oder verändert KEINE Mails (legt nur die Ordner an).
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Programmtest (simuliertes Postfach)
+        run: python3 -I tests/test_ablauf.py
+      - name: Echte Einrichtung prüfen
+        run: python3 mailwaechter.py --selbsttest
+        env:
+          GMX_USER: ${{ secrets.GMX_USER }}
+          GMX_PASSWORD: ${{ secrets.GMX_PASSWORD }}
+          SENDER_ADDRESSES: ${{ secrets.SENDER_ADDRESSES }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          START_DATUM: ${{ vars.START_DATUM }}
