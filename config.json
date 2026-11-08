@@ -1,0 +1,40 @@
+{
+  "absender_bezeichnung": "Vater",
+
+  "ordner": {
+    "WICHTIG": "Vater-Mails/Wichtig",
+    "UNKLAR": "Vater-Mails/Pruefen",
+    "BELANGLOS": "Vater-Mails/Belanglos"
+  },
+
+  "wichtig_wenn": [
+    "Gesundheit des Kindes: Krankheit, Verletzung, Unfall, Arztbesuch, Krankenhaus, Medikamente, Allergien",
+    "Sicherheit des Kindes oder Notfälle",
+    "Änderungen bei der Übergabe: Uhrzeit, Ort, Absage, Verspätung",
+    "Schule oder Kita: Termine, Probleme, Elterngespräche, Ausfälle",
+    "Behörden, Gericht, Jugendamt, Anwalt",
+    "Fristen oder Dinge, auf die die Mutter reagieren oder etwas entscheiden muss",
+    "Drohungen oder Ankündigungen, die die Sicherheit von Mutter oder Kind betreffen"
+  ],
+
+  "belanglos_beispiele": [
+    "Kleidung (Löcher, fehlende Sachen, Wäsche, zu klein)",
+    "Vorwürfe, Kritik, Streit über Vergangenes",
+    "Allgemeines Gerede, Befindlichkeiten des Vaters",
+    "Wiederholungen von schon Geschriebenem",
+    "Alltägliches ohne Handlungsbedarf (was gegessen wurde, was gespielt wurde)"
+  ],
+
+  "stichwoerter_immer_wichtig": [
+    "krankenhaus", "klinik", "notaufnahme", "notarzt", "rettungswagen", "krankenwagen",
+    "unfall", "verletz", "gebrochen", "blutet", "fieber", "erbrochen", "übergeben hat",
+    "arzt", "ärztin", "kinderarzt", "kinderärztin", "medikament", "antibiotik", "allergi",
+    "polizei", "jugendamt", "gericht", "anwalt", "anwältin",
+    "absage", "verspät", "nicht abholen", "frist"
+  ],
+
+  "belanglose_stumm_senden": true,
+  "zusammenfassung_bei_wichtig": true,
+  "ki_modell": "claude-haiku-5-5",
+  "max_zeichen_an_ki": 8000
+}

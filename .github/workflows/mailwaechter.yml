@@ -1,0 +1,27 @@
+name: Mail-Wächter
+
+on:
+  schedule:
+    - cron: "*/10 * * * *"   # alle 10 Minuten (GitHub kann sich etwas verspäten)
+  workflow_dispatch:          # manuell starten über "Run workflow"
+
+concurrency:
+  group: mailwaechter
+  cancel-in-progress: false
+
+jobs:
+  pruefen:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Postfach prüfen
+        run: python3 mailwaechter.py
+        env:
+          GMX_USER: ${{ secrets.GMX_USER }}
+          GMX_PASSWORD: ${{ secrets.GMX_PASSWORD }}
+          SENDER_ADDRESSES: ${{ secrets.SENDER_ADDRESSES }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          DRY_RUN: ${{ vars.DRY_RUN }}   # Repo-Variable DRY_RUN=1 -> nur Probelauf
