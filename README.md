@@ -35,7 +35,7 @@ github.com → **Sign up** → Konto anlegen.
 2. Grüner Knopf **„Use this template“ → „Create a new repository“**
 3. Name z. B. `mail-waechter`, **Public** auswählen (kostenlos und unbegrenzt; es liegen dort keine persönlichen Daten) → **Create repository**
 
-Ab jetzt gehört alles ihr. Die Vorlage braucht sie danach nicht mehr.
+Ab jetzt gehört alles ihr. Die Vorlage braucht sie danach nicht mehr. Bis die Zugangsdaten eingetragen sind (Schritt 6), wartet der Wächter still und verschickt keine Fehlermeldungen.
 
 ### Schritt 3: GMX vorbereiten
 GMX im Browser → **E-Mail → Einstellungen → POP3/IMAP Abruf** → **„Zugriff erlauben“** aktivieren → Speichern.

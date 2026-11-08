@@ -367,6 +367,13 @@ def absender_liste():
 
 
 def postfach_pruefen():
+    # Frisch aus der Vorlage kopiert, noch gar nichts eingetragen -> still beenden,
+    # damit es während der Einrichtung keine Fehlermails hagelt. Sobald auch nur
+    # eine Zugangsangabe gesetzt ist, führt jede fehlende zu einem Fehleralarm.
+    if not any((os.environ.get(n) or "").strip() for n in
+               ("GMX_USER", "GMX_PASSWORD", "SENDER_ADDRESSES", "TELEGRAM_BOT_TOKEN", "TELEGRAM_CHAT_ID")):
+        log("Noch nicht eingerichtet (keine Secrets) – nichts zu tun.")
+        return
     cfg = lade_config()
     absender = absender_liste()
     trocken = ist_an("DRY_RUN")

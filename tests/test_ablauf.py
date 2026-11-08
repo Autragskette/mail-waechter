@@ -203,5 +203,22 @@ check("12 Rückstau portioniert", len(ordner(imap, "Belanglos")) == 40 and len(i
 imap, netz, f = lauf([mail("ex@example.de", "x", "Loch")], ki=lambda t: {"kategorie": "EGAL"})
 check("13 Unsinnige KI-Antwort -> Prüfen", ordner(imap, "Pruefen") == {b"1"})
 
+# 14) Frisch kopiert, noch keine Secrets -> still beenden, kein Fehler
+for n in ("GMX_USER", "GMX_PASSWORD", "SENDER_ADDRESSES", "TELEGRAM_BOT_TOKEN", "TELEGRAM_CHAT_ID"):
+    os.environ[n] = ""
+try:
+    mw.postfach_pruefen(); f = None
+except BaseException as e:
+    f = e
+check("14 ohne Secrets kein Fehlalarm", f is None)
+
+# 15) Nur teilweise eingerichtet -> Fehler (damit nichts still ausfällt)
+os.environ["GMX_USER"] = "sie@gmx.de"
+try:
+    mw.postfach_pruefen(); f = None
+except BaseException as e:
+    f = e
+check("15 halb eingerichtet -> Fehler", f is not None)
+
 print("\nALLE TESTS BESTANDEN" if not GESCHEITERT else f"\n{len(GESCHEITERT)} FEHLGESCHLAGEN")
 sys.exit(1 if GESCHEITERT else 0)
