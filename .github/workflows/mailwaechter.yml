@@ -28,13 +28,10 @@ jobs:
       - name: Postfach prüfen
         run: python3 mailwaechter.py
         env:
-          GMX_USER: ${{ secrets.GMX_USER }}
-          GMX_PASSWORD: ${{ secrets.GMX_PASSWORD }}
-          SENDER_ADDRESSES: ${{ secrets.SENDER_ADDRESSES }}
-          SENDER_NAMES: ${{ secrets.SENDER_NAMES }}
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-          START_DATUM: ${{ vars.START_DATUM }}
-          DRY_RUN: ${{ vars.DRY_RUN }}
+          # Alle Secrets und Variablen gebündelt – neue Einstellungen (z. B. KIND_NAME)
+          # funktionieren damit, ohne diese Datei zu ändern.
+          ALLE_SECRETS: ${{ toJSON(secrets) }}
+          ALLE_VARS: ${{ toJSON(vars) }}
           HEARTBEAT: ${{ github.event.schedule == '7 18 * * *' }}
 
       # Unabhängiger Wachdienst: meldet sich healthchecks.io eine Stunde lang kein

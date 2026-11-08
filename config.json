@@ -6,26 +6,27 @@
     "BELANGLOS": "Vater-Mails/Belanglos"
   },
   "wichtig_wenn": [
-    "Gesundheit des Kindes: Krankheit, Verletzung, Unfall, Arztbesuch, Krankenhaus, Medikamente, Allergien, Zähne, psychische Belastung des Kindes",
-    "Sicherheit des Kindes oder Notfälle, auch angedeutete",
-    "Ankündigungen, das Kind nicht zurückzubringen, mitzunehmen, zu verreisen oder ins Ausland zu bringen",
-    "Drohungen jeder Art, auch versteckte, gegen Mutter, Kind oder andere",
-    "Andeutungen des Vaters, sich selbst etwas anzutun, oder dass er nicht mehr kann",
-    "Hinweise auf Alkohol, Drogen, Gewalt oder Aufsichtsprobleme, während das Kind beim Vater ist",
-    "Änderungen bei der Übergabe: Uhrzeit, Ort, Absage, Verspätung, wer das Kind bringt oder abholt",
-    "Schule oder Kita: Termine, Probleme, Elterngespräche, Ausfälle, Ausflüge mit Zustimmungspflicht",
+    "Gesundheit des gemeinsamen Kindes: Krankheit, Fieber, Verletzung, Unfall, Arztbesuch, Krankenhaus, Medikamente, Allergien, Zähne, psychische Belastung",
+    "Sicherheit des gemeinsamen Kindes oder Notfälle, auch angedeutete",
+    "Ankündigungen, das gemeinsame Kind nicht zurückzubringen, mitzunehmen, zu verreisen oder ins Ausland zu bringen",
+    "Drohungen gegen die Mutter oder das gemeinsame Kind, auch versteckte",
+    "Andeutungen des Vaters, sich selbst etwas anzutun – das Kind ist regelmäßig bei ihm",
+    "Hinweise auf Alkohol, Drogen, Gewalt oder fehlende Aufsicht, während das gemeinsame Kind beim Vater ist",
+    "Änderungen bei der Übergabe des gemeinsamen Kindes: Uhrzeit, Ort, Absage, Verspätung, wer bringt oder abholt",
+    "Schule oder Kita des gemeinsamen Kindes: wichtige Termine, Probleme, Elterngespräche, Zustimmungen",
     "Behörden, Gericht, Jugendamt, Anwalt, Polizei, Gutachter",
-    "Fristen, Unterschriften oder Entscheidungen, auf die die Mutter reagieren muss"
+    "Fristen, Unterschriften oder Entscheidungen zum gemeinsamen Kind, auf die die Mutter reagieren muss"
   ],
   "belanglos_beispiele": [
-    "Kleidung (Löcher, fehlende Sachen, Wäsche, zu klein, dreckig)",
-    "Vorwürfe, Kritik, Beleidigungen ohne Drohung, Streit über Vergangenes",
-    "Allgemeines Gerede, Befindlichkeiten des Vaters ohne Andeutung von Selbstgefährdung",
+    "Alles, was nur andere Kinder der Mutter betrifft",
+    "Kleidung, Koffer, Taschen, Spielzeug, Dinge einpacken oder vergessen (Löcher, fehlende Sachen, Wäsche)",
+    "Beleidigungen, Vorwürfe, Kritik, Diagnosen über andere Menschen, Streit über Vergangenes",
+    "Allgemeines Gerede, Befindlichkeiten und Gejammer des Vaters ohne Andeutung von Selbstgefährdung",
     "Wiederholungen von schon Geschriebenem",
-    "Alltägliches ohne Handlungsbedarf (was gegessen oder gespielt wurde)",
-    "Fragen oder Bitten ohne Frist, die nichts mit Gesundheit, Sicherheit oder Terminen zu tun haben"
+    "Alltägliches ohne Handlungsbedarf (was gegessen oder gespielt wurde, wie der Tag war)",
+    "Fragen oder Bitten ohne Frist, die nichts mit Gesundheit, Sicherheit oder Übergabe zu tun haben"
   ],
-  "stichwoerter_hinweis": "Standard: Stichwort wird überall gefunden, auch mitten im Wort (schmerz = Bauchschmerzen). ^ davor: nur am Wortanfang (^rache trifft 'Racheakt', aber nicht 'Sprache'). = davor: nur als ganzes Wort (=tot trifft 'tot', aber nicht 'total'). Groß/klein, ä/ae, ß/ss egal.",
+  "stichwoerter_hinweis": "Mit KI: Stichwörter sind nur ein Hinweis, die KI entscheidet nach dem Sinn. Ohne KI: ein Treffer = wichtig. Standard: überall im Wort (schmerz = Bauchschmerzen). ^ davor: nur am Wortanfang. = davor: nur ganzes Wort. Groß/klein, ä/ae, ß/ss egal.",
   "stichwoerter_immer_wichtig": {
     "Notfall": [
       "notfall",
@@ -295,5 +296,47 @@
   "belanglose_stumm_senden": true,
   "zusammenfassung_bei_wichtig": true,
   "ki_modell": "claude-haiku-5-5",
-  "max_zeichen_an_ki": 8000
+  "max_zeichen_an_ki": 8000,
+  "notfall_netz_aktiv": true,
+  "notfall_sicherheitsnetz_hinweis": "Diese Wörter machen eine Mail, die die KI für belanglos hält, trotzdem zu 'bitte ansehen' – außer sie nennt nur ein anderes Kind. Mit notfall_netz_aktiv=false abschaltbar.",
+  "notfall_sicherheitsnetz": [
+    "notarzt",
+    "notaufnahme",
+    "rettungswagen",
+    "krankenwagen",
+    "rettungsdienst",
+    "=112",
+    "intensivstation",
+    "krankenhaus",
+    "bewusstlos",
+    "reanim",
+    "vermiss",
+    "entführ",
+    "nicht auffindbar",
+    "bringe ihn nicht zurück",
+    "bringe sie nicht zurück",
+    "polizei",
+    "selbstmord",
+    "suizid",
+    "mich umbringen",
+    "umbring",
+    "waffe",
+    "pistole"
+  ],
+  "beleidigungen_ignorieren": [
+    "geisteskrank",
+    "psychisch krank",
+    "krank im kopf",
+    "du bist krank",
+    "bist doch krank",
+    "bist du krank",
+    "krankhaft",
+    "kranke mutter",
+    "kranker mensch",
+    "krankes hirn",
+    "krankes gehirn",
+    "total krank",
+    "voll krank"
+  ],
+  "anhang_ohne_text_melden": true
 }

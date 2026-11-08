@@ -1,0 +1,52 @@
+name: Aktualisieren
+
+# Holt die neueste Version des Programms aus der Vorlage (Autragskette/mail-waechter).
+# Läuft NUR, wenn man es selbst startet: Actions → "Aktualisieren" → "Run workflow".
+# Vor dem Übernehmen laufen alle Tests – schlagen sie fehl, wird NICHTS geändert.
+# Die eigene config.json (z. B. ergänzte Stichwörter) bleibt erhalten, außer man wählt es aus.
+
+on:
+  workflow_dispatch:
+    inputs:
+      config_auch:
+        description: "Auch config.json (Regeln/Stichwörter) überschreiben?"
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+jobs:
+  aktualisieren:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Neue Version holen
+        run: |
+          set -e
+          QUELLE="https://raw.githubusercontent.com/Autragskette/mail-waechter/main"
+          mkdir -p /tmp/neu/tests
+          curl -fsS "$QUELLE/mailwaechter.py"       -o /tmp/neu/mailwaechter.py
+          curl -fsS "$QUELLE/tests/test_ablauf.py"  -o /tmp/neu/tests/test_ablauf.py
+          curl -fsS "$QUELLE/config.json"           -o /tmp/neu/config.json
+          cp /tmp/neu/mailwaechter.py mailwaechter.py
+          cp /tmp/neu/tests/test_ablauf.py tests/test_ablauf.py
+          if [ "${{ inputs.config_auch }}" = "true" ]; then cp /tmp/neu/config.json config.json; fi
+      - name: Tests (bei Fehler wird nichts übernommen)
+        run: |
+          # Programm gegen die Vorlagen-Regeln testen …
+          CONFIG_PATH=/tmp/neu/config.json python3 -I tests/test_ablauf.py
+          # … und prüfen, dass die eigene config.json mit der neuen Version funktioniert
+          python3 -I -c "import sys; sys.path.insert(0, '.'); import mailwaechter as m; c = m.lade_config(); m.stichwort_muster(c); m.ki_prompt(c); print('config.json ok')"
+      - name: Übernehmen
+        run: |
+          git config user.name "Mail-Wächter Update"
+          git config user.email "noreply@github.com"
+          git add mailwaechter.py tests/test_ablauf.py config.json
+          if git diff --cached --quiet; then
+            echo "Schon auf dem neuesten Stand."
+          else
+            git commit -m "Aktualisiert aus der Vorlage"
+            git push
+          fi

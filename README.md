@@ -11,9 +11,16 @@ Sortiert die Mails **eines bestimmten Absenders** im GMX-Postfach vor und meldet
 Mails von anderen Absendern werden **nicht angefasst**. **Es wird nie etwas gelöscht.**
 
 ## Wie entschieden wird
-1. **Stichwörter (über 240, in 9 Gruppen):** Kommt eines vor, ist die Mail **immer** WICHTIG, egal was die KI sagt. Auch Wortteile zählen („schmerz“ trifft *Bauchschmerzen*), Groß/klein und ä/ae sind egal. Die Liste steht in `config.json`.
-2. **KI (Claude):** liest jede Mail und ordnet sie nach den Regeln `wichtig_wenn` / `belanglos_beispiele` in `config.json` ein. Ist sie unsicher, gilt die Mail als UNKLAR. Die Zusammenfassung enthält nur Fakten, keine Beleidigungen.
-3. **Im Zweifel melden:** Ein Anhang ohne Text, eine unlesbare Mail oder eine nicht erreichbare KI → UNKLAR, mit Ton.
+**Mit KI (empfohlen):** Claude liest jede Mail komplett und entscheidet nach dem **Sinn**:
+- Nur was das **gemeinsame Kind** (`KIND_NAME`) betrifft, kann wichtig sein. Alles über **andere Kinder** (`ANDERE_KINDER`) ist belanglos.
+- Beleidigungen, Vorwürfe und Nebensächliches („für die Reha braucht er den Koffer“) sind belanglos.
+- Wichtige Meldungen enthalten eine **sachliche Kurzfassung** ohne Beleidigungen.
+- Stichwörter sind nur ein Hinweis an die KI. **Notfall-Netz:** Eindeutige Notfallwörter (Notarzt, Notaufnahme, 112, vermisst, Polizei …) machen eine Mail, die die KI für belanglos hält, trotzdem zu „bitte ansehen“, außer sie nennt nur ein anderes Kind. Abschaltbar mit `notfall_netz_aktiv: false`.
+- Ein Anhang ohne Text → „bitte ansehen“, weil die KI Anhänge nicht lesen kann (`anhang_ohne_text_melden`).
+
+**Ohne KI (kostenlos):** Die Stichwörter entscheiden. Ein Treffer bedeutet WICHTIG, außer es geht nur um ein anderes Kind oder es ist eine Beleidigung wie „geisteskrank“ (`beleidigungen_ignorieren`).
+
+**Fällt die KI aus:** Die Stichwörter springen ein, Mails ohne Treffer kommen als „bitte ansehen“, dazu eine Warnung.
 
 ## Sicherheitsmechanismen
 | Was passieren kann | Was dann passiert |
@@ -79,6 +86,10 @@ Repo → **Settings → Secrets and variables → Actions → New repository sec
 | `TELEGRAM_CHAT_ID` | Chat-ID aus Schritt 4 |
 | `HEALTHCHECK_URL` | Ping-URL aus Schritt 5 |
 | `ANTHROPIC_API_KEY` | Schlüssel aus Schritt 6 |
+| `KIND_NAME` | Vorname des gemeinsamen Kindes |
+| `ANDERE_KINDER` | Vornamen ihrer anderen Kinder, mit Komma (deren Themen sind belanglos) |
+
+Die Kindernamen stehen absichtlich nur in den Secrets und nicht im öffentlichen Code.
 
 Secrets sind verschlüsselt und auch bei einem öffentlichen Repo für niemanden lesbar.
 
@@ -100,6 +111,9 @@ Bei `SENDER_ADDRESSES` vorübergehend eine zweite eigene Adresse ergänzen, von 
   Standard: wird überall gefunden, auch im Wort. `^wort`: nur am Wortanfang. `=wort`: nur als ganzes Wort.
 - `wichtig_wenn` / `belanglos_beispiele`: Regeln für die KI in normaler Sprache.
 - Probelauf ohne Verschieben: Variable `DRY_RUN` = `1`, danach wieder löschen.
+
+## Neue Version übernehmen
+Actions → **„Aktualisieren“** → **Run workflow**. Holt die neueste Version aus der Vorlage, testet sie und übernimmt sie nur, wenn alle Tests bestehen. Die eigene `config.json` bleibt erhalten, außer man hakt „Auch config.json überschreiben“ an.
 
 ## Kosten
 GitHub, Telegram und healthchecks.io sind kostenlos. Die Claude-API kostet pro Mail einen Bruchteil eines Cents. Gekauftes Guthaben verfällt nach einem Jahr.
