@@ -29,7 +29,7 @@ Mails von anderen Absendern werden **nicht angefasst**. **Es wird nie etwas gel�
 | GitHub fällt aus, Ablauf pausiert, Konto gesperrt, Telegram-Bot defekt | **Wachdienst healthchecks.io** meldet sich nach spätestens ~1 Std. **selbst** (eigener Telegram-Bot + E-Mail) |
 | KI-Guthaben leer / KI gestört | ⚠️ Warnung mit Grund. Mails werden trotzdem gemeldet, die Stichwörter prüfen weiter |
 | Telegram-Nachricht kommt nicht durch | wichtige Mail bleibt im Posteingang, Lauf schlägt fehl → Alarm |
-| Mail landet im **Spamverdacht**, in **„Unbekannt“** oder durch einen Filter in einem anderen Ordner | alle Ordner werden durchsucht (außer Gesendet, Entwürfe, Papierkorb). Die Meldung sagt, wo sie lag |
+| Mail landet im **Spamverdacht**, in **„Unbekannt“** oder durch einen Filter in einem anderen Ordner | alle Ordner werden durchsucht (außer Gesendet, Entwürfe, Papierkorb). Die Meldung sagt, wo sie lag (beim Spam nicht – dorthin darf man ihn per GMX-Filter bewusst umleiten, damit keine Vorschau aufs Handy kommt; dabei NICHT „Absender blockieren“ nehmen) |
 | Er schreibt von einer **neuen Adresse** | wird über seinen Namen erkannt (`SENDER_NAMES`) → Meldung „🆕 neue Adresse“ |
 | GitHub würde nach 60 Tagen pausieren | wird täglich automatisch verhindert |
 | Alles still, aber trotzdem unsicher? | **täglich gegen 19 Uhr** stummes Lebenszeichen „✅ läuft“ |
