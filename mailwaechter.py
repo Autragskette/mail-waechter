@@ -21,6 +21,11 @@ Aufrufe:
   python3 mailwaechter.py --selbsttest  prüft die komplette Einrichtung
   python3 mailwaechter.py --test X.eml  eine lokale .eml-Datei einstufen
   python3 mailwaechter.py --chat-id     Telegram-Chat-ID herausfinden
+  python3 mailwaechter.py --fehleralarm LINK   (nur für den Workflow)
+
+Warnungen (Fehler, nicht prüfbare Ordner, KI-Störung) kommen nur EINMAL,
+dann höchstens alle 12 Stunden als Erinnerung, und eine Entwarnung, wenn es
+wieder läuft. Telegram meldet sich sonst nur, wenn wirklich eine Mail kommt.
 """
 
 import datetime
@@ -39,6 +44,9 @@ from email.utils import getaddresses, parsedate_to_datetime
 
 HIER = os.path.dirname(os.path.abspath(__file__))
 CONFIG_PATH = os.environ.get("CONFIG_PATH", os.path.join(HIER, "config.json"))
+# Merkt sich zwischen den Läufen, welche Warnungen schon verschickt wurden
+# (wird im Workflow über den GitHub-Cache von Lauf zu Lauf weitergegeben).
+ZUSTAND_PATH = os.environ.get("ZUSTAND_PATH", os.path.join(HIER, ".zustand", "status.json"))
 
 KATEGORIEN = ("WICHTIG", "UNKLAR", "BELANGLOS")
 RANG = {"BELANGLOS": 0, "UNKLAR": 1, "WICHTIG": 2}
@@ -421,6 +429,54 @@ def telegram(text, stumm=False):
         raise RuntimeError("Telegram hat die Nachricht abgelehnt")
 
 
+# ---------------------------------------------------------------- Warnungen nur einmal
+# Ohne das käme eine hängende Warnung bei JEDEM Lauf, also alle 10 Minuten.
+# Jetzt: einmal melden, höchstens alle X Stunden erinnern, einmal Entwarnung.
+
+def zustand_laden():
+    try:
+        with open(ZUSTAND_PATH, encoding="utf-8") as f:
+            z = json.load(f)
+        return z if isinstance(z, dict) else {}
+    except (OSError, ValueError):
+        return {}
+
+
+def zustand_speichern(z):
+    try:
+        os.makedirs(os.path.dirname(ZUSTAND_PATH), exist_ok=True)
+        with open(ZUSTAND_PATH, "w", encoding="utf-8") as f:
+            json.dump(z, f)
+    except OSError:
+        log("Zustand konnte nicht gespeichert werden – Warnungen kommen evtl. doppelt")
+
+
+def erinnerung_sekunden(cfg):
+    try:
+        return max(1.0, float(cfg.get("warnung_erinnern_stunden", 12))) * 3600
+    except (TypeError, ValueError):
+        return 12 * 3600
+
+
+def warnung(z, schluessel, text, cfg, link=""):
+    """Schickt eine Warnung nur, wenn sie neu ist, sich geändert hat oder
+    die Erinnerungszeit abgelaufen ist."""
+    jetzt = time.time()
+    alt = z.get(schluessel) or {}
+    if alt.get("text") == text and jetzt - float(alt.get("gesendet", 0)) < erinnerung_sekunden(cfg):
+        return False
+    erinnerung = alt.get("text") == text
+    telegram(("🔁 Erinnerung – " if erinnerung else "") + text + (f"\n{link}" if link else ""))
+    z[schluessel] = {"text": text, "gesendet": jetzt, "seit": alt.get("seit", jetzt) if erinnerung else jetzt}
+    return True
+
+
+def entwarnung(z, schluessel, text):
+    if schluessel in z:
+        telegram(text, stumm=True)
+        del z[schluessel]
+
+
 def nachricht(erg, betreff, datum, anhang_namen, cfg, hinweis=""):
     wer = cfg.get("absender_bezeichnung", "Absender")
     ordner = cfg["ordner"][erg["kategorie"]]
@@ -641,6 +697,15 @@ def postfach_pruefen():
     start = start_kriterien()
     trocken = ist_an("DRY_RUN")
 
+    zustand = zustand_laden()
+    try:
+        _postfach_pruefen(cfg, adressen, namen, start, trocken, zustand)
+    finally:
+        if not trocken:
+            zustand_speichern(zustand)
+
+
+def _postfach_pruefen(cfg, adressen, namen, start, trocken, zustand):
     imap = imap_verbinden()
     ziele, trenner = zielordner(imap, cfg)
     if not trocken:
@@ -649,6 +714,7 @@ def postfach_pruefen():
     quellen = quellordner(imap, ziele)
     zaehler = {k: 0 for k in KATEGORIEN}
     belanglose, ki_fehler = [], set()
+    ki_ok = False          # mindestens eine Mail ohne KI-Störung eingestuft
     rest = 0
     verarbeitet = 0
     probleme = []          # wird am Ende LAUT gemeldet, damit nichts still untergeht
@@ -689,6 +755,8 @@ def postfach_pruefen():
                 erg, kf = einstufen(betreff, ohne_zitate(text_aus_mail(msg)), anh, cfg)
                 if kf:
                     ki_fehler.add(kf)
+                else:
+                    ki_ok = True
             except Exception as e:
                 log(f"Mail nicht lesbar ({type(e).__name__}) – wird als UNKLAR gemeldet")
                 anh = []
@@ -720,15 +788,23 @@ def postfach_pruefen():
                 verschieben(imap, uid, ziele[kat])
             zaehler[kat] += 1
 
-    if probleme:
-        telegram("⚠️ Mail-Wächter: Nicht alles konnte geprüft werden:\n- "
-                 + "\n- ".join(sorted(set(probleme)))
-                 + "\nBitte selbst in GMX nachsehen (auch Spamverdacht/Unbekannt).")
+    if not trocken:
+        # Der Lauf hat das Postfach geprüft -> ein früherer Fehleralarm ist erledigt.
+        entwarnung(zustand, "fehler", "✅ Mail-Wächter läuft wieder – das Postfach wird wieder geprüft.")
 
-    if ki_fehler:
-        telegram("⚠️ Mail-Wächter: Die KI-Sortierung ist gerade gestört ("
-                 + "; ".join(sorted(ki_fehler)) + ").\nBetroffene Mails wurden vorsichtshalber "
-                 "als „bitte selbst ansehen“ gemeldet. Die Stichwort-Prüfung läuft weiter.")
+        if probleme:
+            warnung(zustand, "probleme", "⚠️ Mail-Wächter: Nicht alles konnte geprüft werden:\n- "
+                    + "\n- ".join(sorted(set(probleme)))
+                    + "\nBitte selbst in GMX nachsehen (auch Spamverdacht/Unbekannt).", cfg)
+        else:
+            entwarnung(zustand, "probleme", "✅ Mail-Wächter: Alle Ordner werden wieder vollständig geprüft.")
+
+        if ki_fehler:
+            warnung(zustand, "ki", "⚠️ Mail-Wächter: Die KI-Sortierung ist gerade gestört ("
+                    + "; ".join(sorted(ki_fehler)) + ").\nBetroffene Mails werden vorsichtshalber "
+                    "als „bitte selbst ansehen“ gemeldet. Die Stichwort-Prüfung läuft weiter.", cfg)
+        elif ki_ok:
+            entwarnung(zustand, "ki", "✅ Mail-Wächter: Die KI-Sortierung funktioniert wieder.")
 
     if belanglose:
         telegram(sammel_nachricht(belanglose, cfg),
@@ -892,6 +968,22 @@ def test_datei(pfad):
         print(nachricht(erg, betreff, mail_datum(msg), namen, cfg))
 
 
+def fehleralarm(link=""):
+    """Wird vom Workflow aufgerufen, wenn ein Lauf gescheitert ist.
+    Meldet nur beim ersten Mal (und dann alle X Stunden als Erinnerung)."""
+    try:
+        cfg = lade_config()
+    except BaseException:
+        cfg = {}
+    z = zustand_laden()
+    gesendet = warnung(z, "fehler", "❌ Mail-Wächter: Das Postfach konnte gerade NICHT geprüft werden. "
+                       "Bis das behoben ist, bitte selbst in GMX nachsehen (auch im Spam-Ordner). "
+                       "Sobald es wieder klappt, kommt eine Entwarnung.", cfg,
+                       link=f"Details: {link}" if link else "")
+    zustand_speichern(z)
+    log("Fehleralarm gesendet" if gesendet else "Fehleralarm schon gemeldet – keine neue Nachricht")
+
+
 def chat_id_finden():
     token = env("TELEGRAM_BOT_TOKEN")
     with urllib.request.urlopen(f"https://api.telegram.org/bot{token}/getUpdates", timeout=30) as r:
@@ -909,6 +1001,8 @@ if __name__ == "__main__":
         test_datei(sys.argv[2])
     elif len(sys.argv) >= 2 and sys.argv[1] == "--chat-id":
         chat_id_finden()
+    elif len(sys.argv) >= 2 and sys.argv[1] == "--fehleralarm":
+        fehleralarm(sys.argv[2] if len(sys.argv) >= 3 else "")
     elif len(sys.argv) >= 2 and sys.argv[1] == "--selbsttest":
         selbsttest()
     else:
