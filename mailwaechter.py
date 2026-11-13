@@ -767,9 +767,10 @@ def _postfach_pruefen(cfg, adressen, namen, start, trocken, zustand):
             if art == "name":
                 hochstufen(erg, "UNKLAR", "Neue, unbekannte Absenderadresse")
                 hinweise.append(f"🆕 Von NEUER Adresse: {fremde_adresse} – bitte bei SENDER_ADDRESSES ergänzen")
-            if quelle != "INBOX":
-                hinweise.append(f"📂 Lag im Ordner „{quelle}“"
-                                + (" (Spam!)" if ist_spam_ordner(quelle) else ""))
+            # Spam ist gewollt (GMX-Filter leitet ihn dorthin, damit keine Vorschau
+            # aufs Handy kommt) -> dafür kein Hinweis. Andere Ordner weiter nennen.
+            if quelle != "INBOX" and not ist_spam_ordner(quelle):
+                hinweise.append(f"📂 Lag im Ordner „{quelle}“")
             kat = erg["kategorie"]
 
             if trocken:

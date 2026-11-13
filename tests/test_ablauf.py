@@ -277,7 +277,8 @@ check("15 halb eingerichtet -> Fehler", f is not None)
 # 16) Mail im Spam-Ordner wird gefunden und gemeldet
 imap, netz, f = lauf([], spam=[mail("ex@example.de", "Info", "Wir waren in der Notaufnahme")])
 check("16 Spam-Ordner durchsucht", ordner(imap, "Wichtig") == {b"101"})
-check("16 Hinweis 'Spam' in Meldung", netz.nachrichten and "Spam" in netz.nachrichten[0][0])
+check("16 Meldung ohne Spam-Hinweis (Spam ist gewollt)",
+      netz.nachrichten and "Spam" not in netz.nachrichten[0][0] and "Lag im Ordner" not in netz.nachrichten[0][0])
 
 # 16b) Mail in „Unbekannt“ wird gefunden, Papierkorb/Gesendet werden NICHT angefasst
 imap = FakeIMAP([])
