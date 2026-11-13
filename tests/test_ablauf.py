@@ -9,6 +9,14 @@ import urllib.error
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 import mailwaechter as mw  # noqa: E402
+import tempfile  # noqa: E402
+
+mw.ZUSTAND_PATH = os.path.join(tempfile.mkdtemp(), "status.json")
+
+
+def zustand_leeren():
+    if os.path.exists(mw.ZUSTAND_PATH):
+        os.remove(mw.ZUSTAND_PATH)
 
 
 def mail(von, betreff, text, anhang=False, name="X"):
@@ -121,8 +129,12 @@ def ki_einfach(text):
     return {"kategorie": "BELANGLOS", "thema": "Kleidung", "zusammenfassung": "", "grund": "Alltag"}
 
 
-def lauf(mails, ki=ki_einfach, key="k", telegram_kaputt=False, heartbeat=False, spam=(), **extra):
+def lauf(mails, ki=ki_einfach, key="k", telegram_kaputt=False, heartbeat=False, spam=(), behalten=False, ohne_ordner=(), **extra):
+    if not behalten:
+        zustand_leeren()
     imap = FakeIMAP(mails, spam)
+    for o in ohne_ordner:
+        imap.ordner.pop(o)
     netz = Netz(ki, telegram_kaputt)
     mw.imaplib.IMAP4_SSL = lambda *a, **k: imap
     mw.urllib.request.urlopen = netz
@@ -386,6 +398,36 @@ try:
 except SystemExit as e:
     f = e
 check("29 Selbsttest: KI-Sinnprüfung ok", any("3 Testmails nach Sinn richtig" in t for t, _ in netz.nachrichten))
+
+# 30) Warnungen kommen nur EINMAL, nicht bei jedem 10-Minuten-Lauf
+imap, netz, f = lauf([], ohne_ordner=("Unbekannt",))
+check("30 erste Warnung kommt", f is None and len(netz.nachrichten) == 1 and "Nicht alles" in netz.nachrichten[0][0])
+imap, netz, f = lauf([], ohne_ordner=("Unbekannt",), behalten=True)
+check("30 gleiche Warnung beim nächsten Lauf: still", not netz.nachrichten)
+z = mw.zustand_laden(); z["probleme"]["gesendet"] -= 13 * 3600; mw.zustand_speichern(z)
+imap, netz, f = lauf([], ohne_ordner=("Unbekannt",), behalten=True)
+check("30 nach 12 Std. eine Erinnerung", len(netz.nachrichten) == 1 and "Erinnerung" in netz.nachrichten[0][0])
+imap, netz, f = lauf([], behalten=True)
+check("30 behoben -> eine stille Entwarnung", len(netz.nachrichten) == 1 and netz.nachrichten[0][0].startswith("✅") and netz.nachrichten[0][1])
+imap, netz, f = lauf([], behalten=True)
+check("30 danach: keine Nachricht ohne Mail", not netz.nachrichten)
+
+# 31) Fehleralarm (Lauf gescheitert) nur einmal, Entwarnung beim nächsten guten Lauf
+zustand_leeren()
+netz = Netz(ki_einfach); mw.urllib.request.urlopen = netz
+mw.fehleralarm("https://x"); mw.fehleralarm("https://x"); mw.fehleralarm("https://x")
+check("31 Fehleralarm 3x gescheitert -> 1 Nachricht", len(netz.nachrichten) == 1 and netz.nachrichten[0][0].startswith("❌"))
+imap, netz, f = lauf([], behalten=True)
+check("31 wieder ok -> Entwarnung", len(netz.nachrichten) == 1 and "läuft wieder" in netz.nachrichten[0][0])
+
+# 32) KI-Störung: bei der 2. Mail keine erneute Störungsmeldung, aber die Mail selbst wird gemeldet
+imap, netz, f = lauf([mail("ex@example.de", "a", "Loch")], ki="kaputt")
+check("32 KI-Störung gemeldet", any("KI-Sortierung ist gerade gestört" in t for t, _ in netz.nachrichten))
+imap, netz, f = lauf([mail("ex@example.de", "b", "Loch")], ki="kaputt", behalten=True)
+check("32 2. Mail: gemeldet, Störung nicht nochmal",
+      len(netz.nachrichten) == 1 and netz.nachrichten[0][0].startswith("❓"))
+imap, netz, f = lauf([mail("ex@example.de", "c", "Loch")], behalten=True)
+check("32 KI wieder ok -> Entwarnung", any("funktioniert wieder" in t for t, _ in netz.nachrichten))
 
 print("\nALLE TESTS BESTANDEN" if not GESCHEITERT else f"\n{len(GESCHEITERT)} FEHLGESCHLAGEN")
 sys.exit(1 if GESCHEITERT else 0)

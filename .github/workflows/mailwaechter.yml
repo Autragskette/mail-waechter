@@ -25,6 +25,16 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # Merkt sich, welche Warnungen schon verschickt wurden – damit eine hängende
+      # Warnung nicht alle 10 Minuten neu kommt, sondern nur einmal (+ Erinnerung).
+      - name: Zustand laden
+        uses: actions/cache/restore@v4
+        continue-on-error: true
+        with:
+          path: .zustand
+          key: mw-zustand-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: mw-zustand-
+
       - name: Postfach prüfen
         run: python3 mailwaechter.py
         env:
@@ -58,13 +68,26 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
 
-      # Bei JEDEM Fehler: sofort Warnung aufs Handy – über zwei getrennte Wege.
+      # Bei einem Fehler: Warnung aufs Handy – über zwei getrennte Wege.
+      # Telegram meldet einen Dauerfehler nur EINMAL (+ Erinnerung alle 12 Std.),
+      # nicht bei jedem Lauf. Klappt das Programm selbst nicht, Ersatzweg per curl.
       - name: Fehleralarm
         if: failure() || cancelled()
+        env:
+          LINK: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
           if [ -n "$HEALTHCHECK_URL" ]; then
             curl -fsS -m 15 --retry 3 -o /dev/null "$HEALTHCHECK_URL/fail" || true
           fi
+          python3 mailwaechter.py --fehleralarm "$LINK" || \
           curl -sS -m 20 --retry 3 -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
             --data-urlencode "chat_id=${TELEGRAM_CHAT_ID}" \
-            --data-urlencode "text=❌ Mail-Wächter: Das Postfach konnte gerade NICHT geprüft werden. Bis das behoben ist, bitte selbst in GMX nachsehen (auch im Spam-Ordner). Details: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" || true
+            --data-urlencode "text=❌ Mail-Wächter: Das Postfach konnte gerade NICHT geprüft werden. Bis das behoben ist, bitte selbst in GMX nachsehen (auch im Spam-Ordner). Details: $LINK" || true
+
+      - name: Zustand speichern
+        if: always()
+        uses: actions/cache/save@v4
+        continue-on-error: true
+        with:
+          path: .zustand
+          key: mw-zustand-${{ github.run_id }}-${{ github.run_attempt }}

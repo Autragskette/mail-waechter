@@ -338,5 +338,6 @@
     "total krank",
     "voll krank"
   ],
-  "anhang_ohne_text_melden": true
+  "anhang_ohne_text_melden": true,
+  "warnung_erinnern_stunden": 12
 }
